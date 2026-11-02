@@ -1,0 +1,652 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="PinBox">
+<meta name="theme-color" content="#0e0e12">
+<title>PinBox</title>
+<style>
+  :root {
+    --bg:#0e0e12; --card:#1a1a21; --card2:#23232c; --line:rgba(255,255,255,.07);
+    --fg:#f4f4f8; --dim:#9a9aa8; --acc1:#ff4d6d; --acc2:#ff8a5c;
+    --ease:cubic-bezier(.22,1,.36,1);
+    --glow:radial-gradient(500px 280px at 90% -40px, rgba(255,77,109,.16), transparent 70%), radial-gradient(420px 260px at -10% 120px, rgba(124,92,255,.12), transparent 70%);
+  }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html { background:var(--bg); }
+  body {
+    margin:0; color:var(--fg); font:16px/1.4 -apple-system,system-ui,"SF Pro Text",sans-serif;
+    min-height:100vh; max-width:920px; margin-inline:auto;
+    padding:0 14px calc(env(safe-area-inset-bottom) + 40px);
+    background:var(--glow); background-repeat:no-repeat;
+  }
+  .ic { width:22px; height:22px; flex:none; }
+  .ic.sm { width:18px; height:18px; }
+  button { font:inherit; color:inherit; cursor:pointer; transition:transform .25s var(--ease), background .25s, opacity .25s; }
+  button:active { transform:scale(.96); }
+
+  /* Шапка */
+  header {
+    position:sticky; top:0; z-index:5; display:flex; align-items:center; justify-content:space-between;
+    padding:calc(env(safe-area-inset-top) + 10px) 2px 10px; margin:0 -2px;
+    background:linear-gradient(var(--bg) 60%, transparent);
+  }
+  .brand { display:flex; align-items:center; gap:10px; font-weight:700; font-size:21px; letter-spacing:-.3px; }
+  .brand .logo { width:34px; height:34px; border-radius:11px; display:grid; place-items:center; color:#fff;
+    background:linear-gradient(135deg,var(--acc1),var(--acc2)); box-shadow:0 6px 18px rgba(255,77,109,.35); }
+  .avatar { width:40px; height:40px; border-radius:50%; border:0; display:grid; place-items:center; color:#fff; font-weight:700;
+    background:linear-gradient(135deg,#ff5a5f,#ff9a6b); box-shadow:0 4px 14px rgba(0,0,0,.35); }
+  .avatar.big { width:84px; height:84px; font-size:34px; margin:0 auto; }
+
+  /* Ввод */
+  .adder { background:var(--card); border:1px solid var(--line); border-radius:20px; padding:10px 10px 10px 14px;
+    display:flex; align-items:flex-end; gap:8px; transition:border-color .3s, box-shadow .3s; }
+  .adder:focus-within { border-color:rgba(255,77,109,.5); box-shadow:0 0 0 4px rgba(255,77,109,.1); }
+  .adder .ic.lead { color:var(--dim); margin:10px 0; }
+  textarea { flex:1; min-width:0; background:transparent; border:0; outline:0; color:var(--fg); font:inherit; resize:none;
+    height:44px; max-height:120px; padding:10px 0; }
+  textarea::placeholder { color:#6d6d7a; }
+  .round { width:44px; height:44px; border-radius:14px; border:0; display:grid; place-items:center; background:var(--card2); color:var(--fg); }
+  .round.go { background:linear-gradient(135deg,var(--acc1),var(--acc2)); color:#fff; box-shadow:0 6px 16px rgba(255,77,109,.35); }
+  .round:disabled { opacity:.5; }
+  .spin { animation:spin 1s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+
+  /* Плитки разделов */
+  .label { color:var(--dim); font-size:13px; font-weight:600; letter-spacing:.6px; text-transform:uppercase; margin:22px 4px 10px; }
+  #tiles { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; }
+  @media (min-width:600px){ #tiles { grid-template-columns:repeat(4,1fr); } }
+  .tile { position:relative; height:96px; border:1px solid var(--line); border-radius:20px; overflow:hidden; background:var(--card);
+    text-align:left; padding:12px; display:flex; flex-direction:column; justify-content:space-between; isolation:isolate;
+    animation:rise .5s var(--ease) both; }
+  .tile .cover { position:absolute; inset:0; z-index:-2; }
+  .tile .cover img,.tile .cover video { width:100%; height:100%; object-fit:cover; opacity:.55; }
+  .tile::after { content:""; position:absolute; inset:0; z-index:-1; background:linear-gradient(180deg,rgba(14,14,18,.1),rgba(14,14,18,.85)); }
+  .tile .ti { width:32px; height:32px; border-radius:11px; display:grid; place-items:center; background:rgba(255,255,255,.12); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); }
+  .tile b { display:block; font-size:15px; line-height:1.15; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .tile small { color:var(--dim); font-size:12px; }
+  .tile.on { border-color:transparent; box-shadow:0 0 0 2px var(--acc1), 0 10px 26px rgba(255,77,109,.25); }
+  .tile.on .ti { background:linear-gradient(135deg,var(--acc1),var(--acc2)); }
+  .tile.new { background:transparent; border-style:dashed; border-color:rgba(255,255,255,.18); align-items:center; justify-content:center; color:var(--dim); gap:4px; }
+  .tile.new::after { display:none; }
+
+  /* Заголовок раздела */
+  #sechead { display:flex; align-items:center; justify-content:space-between; margin:22px 4px 10px; min-height:36px; }
+  #sechead h2 { margin:0; font-size:20px; letter-spacing:-.2px; }
+  #sechead h2 span { color:var(--dim); font-weight:500; font-size:15px; margin-left:6px; }
+  .mini { display:flex; gap:6px; }
+  .mini button { width:36px; height:36px; border:0; border-radius:12px; background:var(--card2); display:grid; place-items:center; }
+
+  /* Сетка */
+  #grid { columns:2; column-gap:10px; }
+  @media (min-width:600px){ #grid { columns:3; } }
+  .item { position:relative; break-inside:avoid; margin-bottom:10px; border-radius:16px; overflow:hidden; background:var(--card); min-height:80px;
+    animation:rise .55s var(--ease) both; transition:transform .3s var(--ease); }
+  .item:active { transform:scale(.97); }
+  .item img,.item video { display:block; width:100%; height:auto; pointer-events:none; }
+  .badge { position:absolute; right:8px; bottom:8px; width:28px; height:28px; border-radius:50%; display:grid; place-items:center;
+    background:rgba(0,0,0,.55); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); }
+  .empty { text-align:center; color:var(--dim); padding:44px 10px; animation:rise .6s var(--ease) both; column-span:all; }
+  .empty .ic { width:44px; height:44px; opacity:.5; margin-bottom:8px; }
+  @keyframes rise { from { opacity:0; transform:translateY(12px) scale(.98); } to { opacity:1; transform:none; } }
+
+  /* Просмотр */
+  #viewer { position:fixed; inset:0; z-index:20; display:flex; flex-direction:column; background:rgba(8,8,11,.96);
+    backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px);
+    opacity:0; visibility:hidden; transform:scale(1.03); transition:opacity .35s var(--ease), transform .35s var(--ease), visibility 0s .35s; }
+  #viewer.open { opacity:1; visibility:visible; transform:none; transition-delay:0s; }
+  #vtop { display:flex; justify-content:flex-end; padding:calc(env(safe-area-inset-top) + 10px) 12px 0; }
+  #stage { flex:1; min-height:0; display:flex; align-items:center; justify-content:center; padding:10px; }
+  #stage img,#stage video { max-width:100%; max-height:100%; border-radius:16px; box-shadow:0 20px 60px rgba(0,0,0,.5); animation:rise .5s var(--ease) both; }
+  #vbar { display:flex; gap:8px; padding:8px 12px calc(env(safe-area-inset-bottom) + 14px); }
+  #vbar button { flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; padding:10px 2px; border:0; border-radius:16px;
+    background:var(--card2); font-size:12px; color:var(--fg); }
+  #vbar .del { color:#ff6b7d; }
+
+  /* Шторка */
+  #sw { position:fixed; inset:0; z-index:30; visibility:hidden; transition:visibility 0s .4s; }
+  #sw.open { visibility:visible; transition-delay:0s; }
+  #backdrop { position:absolute; inset:0; background:rgba(0,0,0,.55); opacity:0; transition:opacity .4s var(--ease); backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px); }
+  #sw.open #backdrop { opacity:1; }
+  #sheet { position:absolute; left:0; right:0; bottom:0; max-width:560px; margin:0 auto; max-height:88vh; overflow:auto;
+    background:var(--card); border-radius:26px 26px 0 0; padding:10px 18px calc(env(safe-area-inset-bottom) + 20px);
+    transform:translateY(105%); transition:transform .45s var(--ease); border:1px solid var(--line); border-bottom:0; }
+  #sw.open #sheet { transform:none; }
+  .grab { width:40px; height:5px; border-radius:3px; background:rgba(255,255,255,.2); margin:0 auto 14px; }
+  #sheet h3 { margin:0 0 14px; font-size:19px; text-align:center; }
+  .field { width:100%; background:var(--card2); border:1px solid transparent; border-radius:14px; color:var(--fg); font:inherit; padding:13px 14px; outline:0; transition:border-color .25s; }
+  .field:focus { border-color:rgba(255,77,109,.55); }
+  .fl { display:block; color:var(--dim); font-size:12.5px; margin:14px 4px 6px; }
+  .btn { width:100%; margin-top:14px; padding:14px; border:0; border-radius:14px; font-weight:600; color:#fff;
+    background:linear-gradient(135deg,var(--acc1),var(--acc2)); }
+  .btn:disabled { opacity:.55; }
+  .btn.sec { background:var(--card2); color:var(--fg); margin-top:8px; }
+  .btn.dng { background:rgba(255,77,109,.12); color:#ff6b7d; }
+  .btn .in { display:inline-flex; gap:8px; align-items:center; justify-content:center; }
+  .dots { display:flex; gap:12px; justify-content:center; margin:14px 0 4px; }
+  .dot { width:30px; height:30px; border-radius:50%; border:2px solid transparent; transition:transform .3s var(--ease), border-color .3s; }
+  .dot.on { border-color:#fff; transform:scale(1.18); }
+  .stats { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:16px; }
+  .stat { background:var(--card2); border-radius:14px; padding:10px 6px; text-align:center; }
+  .stat b { display:block; font-size:18px; } .stat small { color:var(--dim); font-size:12px; }
+  .mail { text-align:center; color:var(--dim); font-size:14px; margin-top:12px; word-break:break-all; }
+  .opt { width:100%; display:flex; align-items:center; gap:12px; padding:13px 12px; border:0; border-radius:14px; background:var(--card2); margin-bottom:8px; text-align:left; }
+  .opt .ck { margin-left:auto; color:var(--acc1); }
+
+  /* Экран входа */
+  #auth { position:fixed; inset:0; z-index:50; overflow:auto; display:flex; background:var(--bg); background-image:var(--glow); background-repeat:no-repeat;
+    padding:calc(env(safe-area-inset-top) + 20px) 18px calc(env(safe-area-inset-bottom) + 20px);
+    opacity:0; visibility:hidden; transition:opacity .4s var(--ease), visibility 0s .4s; }
+  #auth.open { opacity:1; visibility:visible; transition-delay:0s; }
+  .authbox { margin:auto; width:100%; max-width:380px; animation:rise .6s var(--ease) both; }
+  .brand.big { justify-content:center; font-size:28px; }
+  .brand.big .logo { width:46px; height:46px; border-radius:15px; }
+  .sub { text-align:center; color:var(--dim); margin:10px 0 22px; font-size:15px; }
+  .seg { display:grid; grid-template-columns:1fr 1fr; background:var(--card); border-radius:14px; padding:4px; margin-bottom:14px; }
+  .seg button { border:0; background:transparent; padding:10px; border-radius:11px; font-weight:600; color:var(--dim); }
+  .seg button.on { background:var(--card2); color:var(--fg); }
+  .authbox .field { margin-bottom:10px; }
+  .or { display:flex; align-items:center; gap:10px; color:var(--dim); font-size:13px; margin:18px 0 2px; }
+  .or::before,.or::after { content:""; flex:1; height:1px; background:var(--line); }
+  .prov { display:grid; grid-auto-flow:column; grid-auto-columns:1fr; gap:8px; }
+  .linkbtn { display:block; margin:16px auto 0; background:none; border:0; color:var(--dim); font-size:14px; }
+  .amsg { min-height:20px; text-align:center; font-size:14px; margin-top:12px; }
+  .amsg.err { color:#ff8a98; } .amsg.ok { color:#7be0a4; }
+
+  /* Уведомление */
+  #toast { position:fixed; left:50%; bottom:calc(env(safe-area-inset-bottom) + 22px); z-index:60; max-width:88vw;
+    transform:translate(-50%,30px); opacity:0; pointer-events:none; padding:12px 18px; border-radius:16px; font-size:14px;
+    background:rgba(40,40,50,.92); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); border:1px solid var(--line);
+    transition:transform .45s var(--ease), opacity .35s; }
+  #toast.show { transform:translate(-50%,0); opacity:1; }
+  #toast.err { color:#ff8a98; }
+
+  @media (prefers-reduced-motion:reduce){ *{ animation:none!important; transition:none!important; } }
+</style>
+</head>
+<body>
+
+<!-- Иконки -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12z"/><circle cx="12" cy="10" r="2.5"/></symbol>
+    <symbol id="i-grid" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><rect x="13.5" y="13.5" width="7" height="7" rx="2"/></symbol>
+    <symbol id="i-image" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="1.8"/><path d="M4 18l5-5 4 4 3-3 4 4"/></symbol>
+    <symbol id="i-video" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M10.5 9.5v5l4.2-2.5z" fill="currentColor"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5z"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></symbol>
+    <symbol id="i-share" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M8 7l4-4 4 4M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></symbol>
+    <symbol id="i-ext" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M18 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h5"/></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></symbol>
+    <symbol id="i-paste" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="3" width="8" height="4" rx="1.5"/><path d="M16 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M8 11l4 4 4-4M5 20h14"/></symbol>
+    <symbol id="i-edit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"/></symbol>
+    <symbol id="i-loader" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 3a9 9 0 1 0 9 9"/></symbol>
+    <symbol id="i-logout" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h3M16 8l4 4-4 4M20 12H9"/></symbol>
+    <symbol id="i-github" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></symbol>
+    <symbol id="i-google" viewBox="0 0 24 24" fill="currentColor"><text x="12" y="18" text-anchor="middle" font-size="19" font-weight="700" font-family="-apple-system,system-ui,sans-serif">G</text></symbol>
+  </defs>
+</svg>
+
+<header>
+  <div class="brand"><span class="logo"><svg class="ic sm"><use href="#i-logo"/></svg></span>PinBox</div>
+  <button class="avatar" id="avatarBtn" aria-label="Аккаунт"></button>
+</header>
+
+<div class="adder">
+  <svg class="ic lead"><use href="#i-link"/></svg>
+  <textarea id="link" rows="1" placeholder="Вставь ссылку на пин" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
+  <button class="round" id="paste" aria-label="Вставить"><svg class="ic"><use href="#i-paste"/></svg></button>
+  <button class="round go" id="save" aria-label="Скачать"><svg class="ic" id="saveIc"><use href="#i-download"/></svg></button>
+</div>
+
+<div class="label">Разделы</div>
+<div id="tiles"></div>
+
+<div id="sechead"></div>
+<div id="grid"></div>
+
+<div id="viewer">
+  <div id="vtop"><button class="round" id="vclose" aria-label="Закрыть"><svg class="ic"><use href="#i-close"/></svg></button></div>
+  <div id="stage"></div>
+  <div id="vbar">
+    <button id="vsave"><svg class="ic"><use href="#i-share"/></svg>Сохранить</button>
+    <button id="vcol"><svg class="ic"><use href="#i-folder"/></svg>Раздел</button>
+    <button id="vopen"><svg class="ic"><use href="#i-ext"/></svg>Pinterest</button>
+    <button id="vdel" class="del"><svg class="ic"><use href="#i-trash"/></svg>Удалить</button>
+  </div>
+</div>
+
+<div id="sw"><div id="backdrop"></div><div id="sheet"></div></div>
+<div id="auth"></div>
+<div id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script>
+// ───── Утилиты ─────
+const $ = (id) => document.getElementById(id);
+const ic = (n, c = '') => '<svg class="ic ' + c + '"><use href="#i-' + n + '"/></svg>';
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const mb = (n) => (n > 1048576 ? (n / 1048576).toFixed(1) + ' МБ' : Math.round(n / 1024) + ' КБ');
+const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2, 10));
+
+let tt;
+function toast(msg, o = {}) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.className = 'show' + (o.err ? ' err' : '');
+  clearTimeout(tt);
+  if (!o.sticky) tt = setTimeout(() => (t.className = ''), o.err ? 4500 : 2600);
+}
+function hideToast() { clearTimeout(tt); $('toast').className = ''; }
+
+// ───── Подключение ─────
+const C = window.CONFIG || {};
+const configured = !!(C.SUPABASE_URL && C.SUPABASE_KEY && window.supabase);
+const sb = configured ? window.supabase.createClient(C.SUPABASE_URL, C.SUPABASE_KEY) : null;
+const WORKER = () => (C.WORKER_URL || localStorage.getItem('worker') || '').replace(/\/+$/, '');
+const pub = (p) => sb.storage.from('pins').getPublicUrl(p).data.publicUrl;
+
+// ───── Состояние ─────
+const GRADS = [['#ff5a5f', '#ff9a6b'], ['#7c5cff', '#4fc3ff'], ['#00c9a7', '#4dd0e1'], ['#ffb347', '#ff6f91'], ['#b490ca', '#5ee7df'], ['#56ab2f', '#a8e063']];
+let user = null, items = [], cols = [], section = 'all', loading = true;
+let current = null, blobP = null;
+
+const meta = () => (user && user.user_metadata) || {};
+const profile = () => ({ name: meta().name || '', grad: Number.isInteger(meta().grad) ? meta().grad : 0 });
+const inSection = (it, k) => k === 'all' || (k === 'image' && it.type === 'image') || (k === 'video' && it.type === 'video') || (k.startsWith('c:') && it.col === k.slice(2));
+
+function gradCss(i) { const g = GRADS[i] || GRADS[0]; return 'background:linear-gradient(135deg,' + g[0] + ',' + g[1] + ')'; }
+function paintAvatar(name, grad) {
+  const html = name ? esc(name.trim().charAt(0).toUpperCase()) : ic('user');
+  [$('avatarBtn'), $('bigAv')].forEach((el) => { if (el) { el.setAttribute('style', gradCss(grad)); el.innerHTML = html; } });
+}
+function refreshAvatar() { const p = profile(); paintAvatar(p.name, p.grad); }
+
+// ───── Данные ─────
+async function loadAll() {
+  const [a, b] = await Promise.all([
+    sb.from('items').select('*').order('added', { ascending: false }),
+    sb.from('collections').select('*').order('created', { ascending: true }),
+  ]);
+  if (a.error || b.error) { toast('Не удалось загрузить: ' + (a.error || b.error).message, { err: true }); return; }
+  items = a.data.map((r) => ({ ...r, url: pub(r.path) }));
+  cols = b.data;
+}
+
+// ───── Рендер ─────
+function mediaTag(it, extra) {
+  return it.type === 'video'
+    ? '<video muted playsinline preload="metadata" src="' + it.url + '#t=0.1"></video>'
+    : '<img ' + (extra || '') + ' src="' + it.url + '">';
+}
+
+function tileDefs() {
+  return [
+    { key: 'all', name: 'Все', icon: 'grid' },
+    { key: 'image', name: 'Фото', icon: 'image' },
+    { key: 'video', name: 'Видео', icon: 'video' },
+  ].concat(cols.map((c) => ({ key: 'c:' + c.id, name: c.name, icon: 'folder' })));
+}
+
+function render() {
+  if (!tileDefs().find((t) => t.key === section)) section = 'all';
+
+  let html = '';
+  tileDefs().forEach((t, i) => {
+    const list = items.filter((it) => inSection(it, t.key));
+    html += '<button class="tile' + (t.key === section ? ' on' : '') + '" data-key="' + t.key + '" style="animation-delay:' + i * 40 + 'ms">' +
+      '<div class="cover">' + (list[0] ? mediaTag(list[0]) : '') + '</div>' +
+      '<span class="ti">' + ic(t.icon, 'sm') + '</span>' +
+      '<div><b>' + esc(t.name) + '</b><small>' + list.length + '</small></div></button>';
+  });
+  html += '<button class="tile new" id="newCol">' + ic('plus') + '<small>Новый раздел</small></button>';
+  $('tiles').innerHTML = html;
+  $('tiles').querySelectorAll('.tile[data-key]').forEach((el) => (el.onclick = () => { section = el.dataset.key; render(); }));
+  $('newCol').onclick = () => ask('Новый раздел', '', async (name) => {
+    const r = await sb.from('collections').insert({ name }).select().single();
+    if (r.error) return toast('Не удалось создать раздел', { err: true });
+    cols.push(r.data); section = 'c:' + r.data.id; render();
+  });
+
+  const def = tileDefs().find((t) => t.key === section);
+  const list = items.filter((it) => inSection(it, section));
+  const isCol = section.startsWith('c:');
+  $('sechead').innerHTML = '<h2>' + esc(def.name) + '<span>' + list.length + '</span></h2>' +
+    (isCol ? '<div class="mini"><button id="renCol" aria-label="Переименовать">' + ic('edit', 'sm') + '</button><button id="delCol" aria-label="Удалить раздел">' + ic('trash', 'sm') + '</button></div>' : '');
+  if (isCol) {
+    const id = section.slice(2);
+    $('renCol').onclick = () => ask('Название раздела', def.name, async (name) => {
+      const r = await sb.from('collections').update({ name }).eq('id', id);
+      if (r.error) return toast('Не удалось переименовать', { err: true });
+      cols = cols.map((c) => (c.id === id ? { ...c, name } : c)); render();
+    });
+    $('delCol').onclick = async () => {
+      if (!confirm('Удалить раздел «' + def.name + '»? Файлы останутся в «Все».')) return;
+      const r = await sb.from('collections').delete().eq('id', id);
+      if (r.error) return toast('Не удалось удалить раздел', { err: true });
+      cols = cols.filter((c) => c.id !== id);
+      items.forEach((it) => { if (it.col === id) it.col = null; });
+      section = 'all'; render();
+    };
+  }
+
+  const grid = $('grid');
+  if (loading) { grid.innerHTML = '<div class="empty">Загружаю…</div>'; return; }
+  if (!list.length) {
+    grid.innerHTML = '<div class="empty">' + ic('image') + '<div>' + (section === 'all' ? 'Пока пусто.<br>Скопируй ссылку на пин и вставь выше.' : 'В этом разделе пока ничего.') + '</div></div>';
+    return;
+  }
+  grid.innerHTML = '';
+  list.forEach((it, i) => {
+    const el = document.createElement('div');
+    el.className = 'item';
+    el.style.animationDelay = Math.min(i, 12) * 30 + 'ms';
+    el.innerHTML = mediaTag(it, 'loading="lazy"') + (it.type === 'video' ? '<span class="badge">' + ic('play', 'sm') + '</span>' : '');
+    el.onclick = () => openViewer(it);
+    grid.appendChild(el);
+  });
+}
+
+// ───── Шторка ─────
+function openSheet(html) { $('sheet').innerHTML = '<div class="grab"></div>' + html; $('sw').classList.add('open'); }
+function closeSheet() { $('sw').classList.remove('open'); }
+$('backdrop').onclick = closeSheet;
+
+function ask(title, val, cb) {
+  openSheet('<h3>' + esc(title) + '</h3><input id="askin" class="field" maxlength="30" value="' + esc(val) + '" placeholder="Название"><button class="btn" id="askok">Готово</button>');
+  const done = () => { const v = $('askin').value.trim(); if (!v) return; closeSheet(); cb(v); };
+  $('askok').onclick = done;
+  $('askin').onkeydown = (e) => { if (e.key === 'Enter') done(); };
+  setTimeout(() => $('askin').focus(), 350);
+}
+
+// ───── Просмотр ─────
+function openViewer(it) {
+  current = it;
+  blobP = it.type === 'image' ? fetch(it.url).then((r) => (r.ok ? r.blob() : null)).catch(() => null) : null;
+  $('stage').innerHTML = it.type === 'video'
+    ? '<video src="' + it.url + '" controls autoplay playsinline loop></video>'
+    : '<img src="' + it.url + '">';
+  $('viewer').classList.add('open');
+}
+function closeViewer() {
+  $('viewer').classList.remove('open');
+  setTimeout(() => { if (!$('viewer').classList.contains('open')) $('stage').innerHTML = ''; }, 380);
+  current = null; blobP = null;
+}
+$('vclose').onclick = closeViewer;
+
+$('vdel').onclick = async () => {
+  if (!current || !confirm('Удалить из избранного?')) return;
+  const it = current;
+  closeViewer();
+  const r = await sb.from('items').delete().eq('id', it.id);
+  if (r.error) return toast('Не удалось удалить', { err: true });
+  await sb.storage.from('pins').remove([it.path]);
+  items = items.filter((x) => x.id !== it.id);
+  render();
+};
+$('vopen').onclick = () => { if (current && current.pin_url) window.open(current.pin_url, '_blank'); };
+
+$('vsave').onclick = async () => {
+  if (!current) return;
+  const it = current;
+  toast('Готовлю файл…', { sticky: true });
+  const blob = await (blobP || fetch(it.url).then((r) => (r.ok ? r.blob() : null)).catch(() => null));
+  if (!blob) return toast('Не удалось получить файл', { err: true });
+  const file = new File([blob], 'pin-' + it.id.slice(0, 8) + '.' + it.path.split('.').pop(), { type: blob.type });
+  try {
+    if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file] }); hideToast(); return; }
+    throw new Error('noshare');
+  } catch (e) {
+    if (e && e.name === 'AbortError') return hideToast();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = file.name; a.click();
+    toast('Файл скачан');
+  }
+};
+
+$('vcol').onclick = () => {
+  if (!current) return;
+  const it = current;
+  const opts = [{ id: '', name: 'Без раздела' }].concat(cols);
+  openSheet('<h3>Переместить в раздел</h3>' + opts.map((o) =>
+    '<button class="opt" data-id="' + o.id + '">' + ic('folder') + esc(o.name) + ((it.col || '') === o.id ? '<span class="ck">' + ic('check') + '</span>' : '') + '</button>').join(''));
+  $('sheet').querySelectorAll('.opt').forEach((b) => (b.onclick = async () => {
+    const col = b.dataset.id || null;
+    const r = await sb.from('items').update({ col }).eq('id', it.id);
+    if (r.error) return toast('Не удалось переместить', { err: true });
+    it.col = col;
+    closeSheet(); toast('Перемещено'); render();
+  }));
+};
+
+// ───── Аккаунт ─────
+$('avatarBtn').onclick = () => { if (user) openAccount(); };
+
+async function saveProfile(name, grad) {
+  const r = await sb.auth.updateUser({ data: { name, grad } });
+  if (r.error) return toast('Не удалось сохранить профиль', { err: true });
+  if (r.data && r.data.user) user = r.data.user;
+}
+
+function openAccount() {
+  const p = profile();
+  const photos = items.filter((i) => i.type === 'image').length;
+  const total = items.reduce((s, i) => s + (i.size || 0), 0);
+  openSheet(
+    '<h3>Аккаунт</h3>' +
+    '<div class="avatar big" id="bigAv"></div>' +
+    '<div class="dots">' + GRADS.map((g, i) => '<button class="dot' + (i === p.grad ? ' on' : '') + '" data-i="' + i + '" style="' + gradCss(i) + '" aria-label="Цвет"></button>').join('') + '</div>' +
+    '<label class="fl">Имя</label><input class="field" id="pName" maxlength="24" value="' + esc(p.name) + '" placeholder="Как тебя зовут?">' +
+    '<div class="mail">' + esc(user.email || '') + '</div>' +
+    '<div class="stats"><div class="stat"><b>' + items.length + '</b><small>всего</small></div><div class="stat"><b>' + photos + '</b><small>фото</small></div><div class="stat"><b>' + (items.length - photos) + '</b><small>видео</small></div></div>' +
+    '<div class="mail">Занято в облаке: ' + mb(total) + '</div>' +
+    '<button class="btn sec" id="out"><span class="in">' + ic('logout', 'sm') + 'Выйти</span></button>' +
+    '<button class="btn dng" id="wipe"><span class="in">' + ic('trash', 'sm') + 'Удалить все файлы</span></button>'
+  );
+  paintAvatar(p.name, p.grad);
+
+  let grad = p.grad;
+  $('pName').oninput = () => paintAvatar($('pName').value, grad);
+  $('pName').onchange = () => saveProfile($('pName').value.trim(), grad);
+  $('sheet').querySelectorAll('.dot').forEach((d) => (d.onclick = () => {
+    grad = +d.dataset.i;
+    $('sheet').querySelectorAll('.dot').forEach((x) => x.classList.toggle('on', x === d));
+    paintAvatar($('pName').value, grad);
+    saveProfile($('pName').value.trim(), grad);
+  }));
+  $('out').onclick = async () => { closeSheet(); await sb.auth.signOut(); };
+  $('wipe').onclick = async () => {
+    if (!confirm('Удалить все файлы из избранного на всех устройствах? Это нельзя отменить.')) return;
+    toast('Удаляю…', { sticky: true });
+    const paths = items.map((i) => i.path);
+    for (let i = 0; i < paths.length; i += 100) await sb.storage.from('pins').remove(paths.slice(i, i + 100));
+    await sb.from('items').delete().eq('user_id', user.id);
+    await loadAll(); closeSheet(); toast('Всё удалено'); render();
+  };
+}
+
+function openNewPassword() {
+  openSheet('<h3>Новый пароль</h3><input id="npw" class="field" type="password" autocomplete="new-password" placeholder="Минимум 6 символов"><button class="btn" id="npok">Сохранить</button>');
+  $('npok').onclick = async () => {
+    const v = $('npw').value;
+    if (v.length < 6) return toast('Минимум 6 символов', { err: true });
+    const r = await sb.auth.updateUser({ password: v });
+    if (r.error) return toast(errRu(r.error.message), { err: true });
+    closeSheet(); toast('Пароль обновлён');
+  };
+}
+
+// ───── Вход ─────
+function errRu(m) {
+  m = m || '';
+  if (/invalid login/i.test(m)) return 'Неверная почта или пароль';
+  if (/already registered/i.test(m)) return 'Эта почта уже зарегистрирована';
+  if (/at least|weak/i.test(m)) return 'Пароль: минимум 6 символов';
+  if (/rate limit|too many|seconds/i.test(m)) return 'Слишком много попыток, подожди немного';
+  if (/valid email|invalid email/i.test(m)) return 'Проверь адрес почты';
+  if (/not confirmed/i.test(m)) return 'Подтверди почту по ссылке из письма';
+  return m;
+}
+function authMsg(t, ok) { const m = $('aMsg'); if (m) { m.textContent = t; m.className = 'amsg' + (t ? (ok ? ' ok' : ' err') : ''); } }
+const redirectUrl = () => location.origin + location.pathname;
+
+function showAuth(mode) {
+  mode = mode || 'in';
+  const a = $('auth');
+  a.classList.add('open');
+  const head = '<div class="brand big"><span class="logo">' + ic('logo', 'sm') + '</span>PinBox</div>';
+  if (!configured) {
+    a.innerHTML = '<div class="authbox">' + head + '<p class="sub">Сайт ещё не подключён к Supabase. Открой файл config.js в репозитории и вставь адрес и ключ проекта. Шаги в README.</p></div>';
+    return;
+  }
+  const up = mode === 'up';
+  const prov = C.PROVIDERS || [];
+  a.innerHTML = '<div class="authbox">' + head +
+    '<p class="sub">Твоё избранное из Pinterest на всех устройствах</p>' +
+    '<div class="seg"><button data-m="in" class="' + (up ? '' : 'on') + '">Вход</button><button data-m="up" class="' + (up ? 'on' : '') + '">Регистрация</button></div>' +
+    '<input id="aEmail" class="field" type="email" inputmode="email" autocomplete="email" placeholder="Почта" autocapitalize="off" autocorrect="off" spellcheck="false">' +
+    '<input id="aPass" class="field" type="password" autocomplete="' + (up ? 'new-password' : 'current-password') + '" placeholder="Пароль (от 6 символов)">' +
+    '<button class="btn" id="aGo">' + (up ? 'Создать аккаунт' : 'Войти') + '</button>' +
+    (prov.length ? '<div class="or"><span>или</span></div><div class="prov">' + prov.map((p) =>
+      '<button class="btn sec" data-p="' + p + '"><span class="in">' + ic(p) + (p === 'github' ? 'GitHub' : 'Google') + '</span></button>').join('') + '</div>' : '') +
+    (up ? '' : '<button class="linkbtn" id="aForgot">Забыл пароль</button>') +
+    '<div id="aMsg" class="amsg"></div></div>';
+
+  a.querySelectorAll('.seg button').forEach((b) => (b.onclick = () => showAuth(b.dataset.m)));
+
+  const go = async () => {
+    const email = $('aEmail').value.trim(), password = $('aPass').value;
+    if (!email || !password) return authMsg('Введи почту и пароль');
+    $('aGo').disabled = true; authMsg('');
+    try {
+      if (up) {
+        const r = await sb.auth.signUp({ email, password });
+        if (r.error) throw r.error;
+        if (!r.data.session) authMsg('Мы отправили письмо. Подтверди почту по ссылке и войди.', true);
+      } else {
+        const r = await sb.auth.signInWithPassword({ email, password });
+        if (r.error) throw r.error;
+      }
+    } catch (e) { authMsg(errRu(e.message)); }
+    if ($('aGo')) $('aGo').disabled = false;
+  };
+  $('aGo').onclick = go;
+  ['aEmail', 'aPass'].forEach((id) => ($(id).onkeydown = (e) => { if (e.key === 'Enter') go(); }));
+
+  if ($('aForgot')) $('aForgot').onclick = async () => {
+    const email = $('aEmail').value.trim();
+    if (!email) return authMsg('Сначала введи почту');
+    const r = await sb.auth.resetPasswordForEmail(email, { redirectTo: redirectUrl() });
+    authMsg(r.error ? errRu(r.error.message) : 'Письмо со ссылкой отправлено', !r.error);
+  };
+  a.querySelectorAll('[data-p]').forEach((b) => (b.onclick = async () => {
+    const r = await sb.auth.signInWithOAuth({ provider: b.dataset.p, options: { redirectTo: redirectUrl() } });
+    if (r.error) authMsg(errRu(r.error.message));
+  }));
+}
+
+async function onLogin() {
+  $('auth').classList.remove('open');
+  refreshAvatar();
+  loading = true; render();
+  await loadAll();
+  loading = false; render();
+}
+
+// ───── Скачивание ─────
+const ta = $('link');
+ta.oninput = () => { ta.style.height = '44px'; ta.style.height = Math.min(ta.scrollHeight, 120) + 'px'; };
+$('paste').onclick = async () => {
+  try { ta.value = await navigator.clipboard.readText(); ta.oninput(); }
+  catch { toast('Вставь вручную: долгое нажатие в поле', { err: true }); }
+};
+
+function extOf(type, blob, url) {
+  if (type === 'video') return 'mp4';
+  const m = /^image\/(\w+)/.exec(blob.type || '');
+  if (m) return m[1].replace('jpeg', 'jpg');
+  const u = /\.(jpe?g|png|webp|gif)(\?|$)/i.exec(url || '');
+  return u ? u[1].toLowerCase().replace('jpeg', 'jpg') : 'jpg';
+}
+
+async function addOne(link, worker) {
+  const r = await fetch(worker + '/?url=' + encodeURIComponent(link));
+  const info = await r.json();
+  if (!r.ok || info.error) throw new Error(info.error || 'Ошибка ' + r.status);
+  const m = await fetch(worker + '/?media=' + encodeURIComponent(info.mediaUrl));
+  if (!m.ok) throw new Error('Файл не скачался (' + m.status + ')');
+  const blob = await m.blob();
+
+  const ext = extOf(info.type, blob, info.mediaUrl);
+  const path = user.id + '/' + uid() + '.' + ext;
+  const contentType = info.type === 'video' ? 'video/mp4' : (ext === 'jpg' ? 'image/jpeg' : 'image/' + ext);
+  const up = await sb.storage.from('pins').upload(path, blob, { contentType, cacheControl: '31536000' });
+  if (up.error) throw new Error(/size|exceed/i.test(up.error.message) ? 'Файл больше 50 МБ — на бесплатном тарифе не помещается' : 'Загрузка: ' + up.error.message);
+
+  const ins = await sb.from('items').insert({
+    type: info.type, path, size: blob.size, title: info.title || '', pin_url: link,
+    col: section.startsWith('c:') ? section.slice(2) : null,
+  }).select().single();
+  if (ins.error) { await sb.storage.from('pins').remove([path]); throw new Error('Не удалось сохранить запись'); }
+  items.unshift({ ...ins.data, url: pub(path) });
+}
+
+$('save').onclick = async () => {
+  if (!user) return;
+  const worker = WORKER();
+  if (!worker) { toast('Укажи WORKER_URL в config.js', { err: true }); return; }
+  const links = ta.value.split(/\s+/).filter((s) => /^https?:\/\//i.test(s));
+  if (!links.length) { toast('Вставь ссылку, начинающуюся с https://', { err: true }); return; }
+  $('save').disabled = true;
+  $('saveIc').innerHTML = '<use href="#i-loader"/>'; $('saveIc').classList.add('spin');
+  let ok = 0, fail = 0, dup = 0, lastErr = '';
+  for (let i = 0; i < links.length; i++) {
+    if (items.some((x) => x.pin_url === links[i])) { dup++; continue; }
+    toast('Скачиваю и загружаю ' + (i + 1) + ' из ' + links.length + '…', { sticky: true });
+    try { await addOne(links[i], worker); ok++; } catch (e) { fail++; lastErr = e.message; }
+  }
+  $('save').disabled = false;
+  $('saveIc').innerHTML = '<use href="#i-download"/>'; $('saveIc').classList.remove('spin');
+  if (ok) { ta.value = ''; ta.oninput(); toast('Готово: ' + ok + (fail ? ', ошибок: ' + fail : '')); }
+  else if (fail) toast(lastErr || 'Ничего не сохранено', { err: true });
+  else if (dup) toast('Уже есть в избранном');
+  render();
+};
+
+// ───── Запуск ─────
+refreshAvatar();
+if (!configured) {
+  loading = false; render(); showAuth();
+} else {
+  sb.auth.onAuthStateChange((event, session) => {
+    if (session && session.user) {
+      const first = !user || user.id !== session.user.id;
+      user = session.user;
+      if (event === 'PASSWORD_RECOVERY') setTimeout(() => onLogin().then(openNewPassword), 0);
+      else if (first) setTimeout(onLogin, 0);
+    } else if (event === 'SIGNED_OUT' || event === 'INITIAL_SESSION') {
+      user = null; items = []; cols = []; section = 'all'; loading = false;
+      closeViewer(); closeSheet(); refreshAvatar(); render(); showAuth();
+    }
+  });
+  // подтянуть изменения с другого телефона, когда возвращаешься на сайт
+  document.addEventListener('visibilitychange', async () => {
+    if (!document.hidden && user) { await loadAll(); render(); }
+  });
+  if (navigator.storage && navigator.storage.persist) navigator.storage.persist();
+}
+</script>
+</body>
+</html>

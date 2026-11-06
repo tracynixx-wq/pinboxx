@@ -4,11 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="PinBox">
 <meta name="theme-color" content="#F2F3F5" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0D1015" media="(prefers-color-scheme: dark)">
 <title>PinBox</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -21,12 +25,19 @@
     --ease:cubic-bezier(.22,1,.36,1);
   }
   @media (prefers-color-scheme: dark) {
-    :root {
+    :root:not([data-theme="light"]) {
       --bg:#0D1015; --bg-a:rgba(13,16,21,.84); --surface:#171A21; --field:#20242D; --paper:#232834;
       --fg:#EEF0F4; --dim:#8F95A3; --line:rgba(255,255,255,.1);
       --ink:#EEF0F4; --on-ink:#101216; --pin:#FF5B45;
     }
   }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg:#0D1015; --bg-a:rgba(13,16,21,.84); --surface:#171A21; --field:#20242D; --paper:#232834;
+    --fg:#EEF0F4; --dim:#8F95A3; --line:rgba(255,255,255,.1);
+    --ink:#EEF0F4; --on-ink:#101216; --pin:#FF5B45;
+  }
+  :root[data-theme="light"] { color-scheme: light; }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html { background:var(--bg); }
   body {
@@ -50,7 +61,9 @@
   .brand .logo { width:34px; height:34px; border-radius:50%; display:grid; place-items:center; color:#fff; background:var(--pin); }
   .avatar { width:40px; height:40px; border-radius:50%; border:0; display:grid; place-items:center; color:#fff; font-weight:700; font-size:17px;
     background:linear-gradient(135deg,#ff5a5f,#ff9a6b); }
-  .avatar.big { width:84px; height:84px; font-size:34px; margin:0 auto; }
+  .avatar { overflow:hidden; }
+  .avatar img { width:100%; height:100%; object-fit:cover; display:block; }
+  .avatar.big { width:96px; height:96px; font-size:38px; margin:0 auto; }
 
   /* Строка добавления: плавает внизу */
   .dock { position:fixed; left:0; right:0; bottom:0; z-index:8; display:flex; justify-content:center; pointer-events:none;
@@ -100,8 +113,8 @@
   .mini button { width:40px; height:40px; border:0; border-radius:50%; background:var(--field); display:grid; place-items:center; }
 
   /* Сетка: почти встык */
-  #grid { columns:2; column-gap:6px; }
-  @media (min-width:600px){ #grid { columns:3; } }
+  #grid { columns:var(--cols,2); column-gap:6px; }
+  @media (min-width:600px){ #grid { columns:var(--colsw,3); } }
   .item { position:relative; break-inside:avoid; margin-bottom:6px; border-radius:12px; overflow:hidden; background:var(--field); min-height:80px;
     animation:fade .3s ease both; transition:transform .25s var(--ease); }
   .item:active { transform:scale(.98); }
@@ -167,6 +180,14 @@
   .seg { display:grid; grid-template-columns:1fr 1fr; background:var(--field); border-radius:16px; padding:4px; margin-bottom:14px; }
   .seg button { border:0; background:transparent; padding:10px; border-radius:12px; font-weight:600; color:var(--dim); }
   .seg button.on { background:var(--surface); color:var(--fg); box-shadow:0 1px 3px rgba(0,0,0,.12); }
+  .seg.s3 { grid-template-columns:repeat(3,1fr); }
+  .seg.tight { margin-bottom:0; }
+  textarea.field { height:auto; min-height:76px; resize:none; display:block; flex:none; }
+  .field::placeholder, textarea.field::placeholder { color:var(--dim); opacity:.75; }
+  .dots + .fl { margin-top:22px; }
+  .chips { display:flex; gap:8px; justify-content:center; margin:14px 0 0; flex-wrap:wrap; }
+  .chip { display:inline-flex; gap:6px; align-items:center; padding:9px 15px; border:0; border-radius:999px; background:var(--field); font-weight:600; font-size:14px; }
+  .bio { text-align:center; color:var(--dim); font-size:14px; margin-top:6px; }
   .authbox .field { margin-bottom:10px; }
   .or { display:flex; align-items:center; gap:10px; color:var(--dim); font-size:13px; margin:18px 0 2px; }
   .or::before,.or::after { content:""; flex:1; height:1px; background:var(--line); }
@@ -280,15 +301,76 @@ let user = null, items = [], cols = [], section = 'all', loading = true;
 let current = null, blobP = null;
 
 const meta = () => (user && user.user_metadata) || {};
-const profile = () => ({ name: meta().name || '', grad: Number.isInteger(meta().grad) ? meta().grad : 0 });
+const profile = () => ({
+  name: meta().name || '',
+  bio: meta().bio || '',
+  grad: Number.isInteger(meta().grad) ? meta().grad : 0,
+  avatar: meta().avatar || '',
+});
 const inSection = (it, k) => k === 'all' || (k === 'image' && it.type === 'image') || (k === 'video' && it.type === 'video') || (k.startsWith('c:') && it.col === k.slice(2));
 
+// Оформление: хранится на телефоне и в профиле (чтобы совпадало на всех устройствах)
+const ACCENTS = [
+  { l: '#E8402D', d: '#FF5B45' }, { l: '#DD5A0B', d: '#FF8239' }, { l: '#6B46F5', d: '#9C86FF' },
+  { l: '#1D63F0', d: '#5C98FF' }, { l: '#15935A', d: '#2FBE7A' }, { l: '#D42070', d: '#FF5C9B' },
+];
+const PREF_DEFAULT = { theme: 'auto', accent: 0, cols: 2 };
+function prefs() {
+  let p = {};
+  try { p = JSON.parse(localStorage.getItem('pb_prefs') || '{}') || {}; } catch (e) { /* пусто */ }
+  return {
+    theme: ['auto', 'light', 'dark'].includes(p.theme) ? p.theme : PREF_DEFAULT.theme,
+    accent: Number.isInteger(p.accent) && p.accent >= 0 && p.accent < ACCENTS.length ? p.accent : PREF_DEFAULT.accent,
+    cols: p.cols === 3 ? 3 : 2,
+  };
+}
+const darkMQ = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+function applyPrefs() {
+  const p = prefs(), root = document.documentElement;
+  if (p.theme === 'light' || p.theme === 'dark') root.setAttribute('data-theme', p.theme); else root.removeAttribute('data-theme');
+  const dark = p.theme === 'dark' || (p.theme !== 'light' && !!darkMQ && darkMQ.matches);
+  const a = ACCENTS[p.accent];
+  root.style.setProperty('--pin', dark ? a.d : a.l);
+  root.style.setProperty('--cols', p.cols === 3 ? 3 : 2);
+  root.style.setProperty('--colsw', p.cols === 3 ? 4 : 3);
+  document.querySelectorAll('meta[name="theme-color"]').forEach((m) => { m.removeAttribute('media'); m.setAttribute('content', dark ? '#0D1015' : '#F2F3F5'); });
+}
+if (darkMQ && darkMQ.addEventListener) darkMQ.addEventListener('change', applyPrefs);
+applyPrefs();
+
+// Сохранение в профиль с небольшой задержкой, чтобы не слать запрос на каждое нажатие
+let pendingMeta = {}, metaT;
+function saveMeta(patch) {
+  if (!user) return;
+  user.user_metadata = { ...meta(), ...patch };
+  Object.assign(pendingMeta, patch);
+  clearTimeout(metaT);
+  metaT = setTimeout(async () => {
+    const data = pendingMeta; pendingMeta = {};
+    const r = await sb.auth.updateUser({ data });
+    if (r.error) return toast('Не удалось сохранить профиль', { err: true });
+  }, 500);
+}
+function setPrefs(patch) {
+  try { localStorage.setItem('pb_prefs', JSON.stringify({ ...prefs(), ...patch })); } catch (e) { /* нет хранилища */ }
+  applyPrefs();
+  saveMeta(patch);
+}
+function pullPrefs() {
+  const m = meta(), patch = {};
+  ['theme', 'accent', 'cols'].forEach((k) => { if (m[k] !== undefined) patch[k] = m[k]; });
+  if (Object.keys(patch).length) {
+    try { localStorage.setItem('pb_prefs', JSON.stringify({ ...prefs(), ...patch })); } catch (e) { /* нет хранилища */ }
+    applyPrefs();
+  }
+}
+
 function gradCss(i) { const g = GRADS[i] || GRADS[0]; return 'background:linear-gradient(135deg,' + g[0] + ',' + g[1] + ')'; }
-function paintAvatar(name, grad) {
-  const html = name ? esc(name.trim().charAt(0).toUpperCase()) : ic('user');
+function paintAvatar(name, grad, avatar) {
+  const html = avatar && sb ? '<img alt="" src="' + esc(pub(avatar)) + '">' : (name ? esc(name.trim().charAt(0).toUpperCase()) : ic('user'));
   [$('avatarBtn'), $('bigAv')].forEach((el) => { if (el) { el.setAttribute('style', gradCss(grad)); el.innerHTML = html; } });
 }
-function refreshAvatar() { const p = profile(); paintAvatar(p.name, p.grad); }
+function refreshAvatar() { const p = profile(); paintAvatar(p.name, p.grad, p.avatar); }
 
 // ───── Данные ─────
 async function loadAll() {
@@ -454,38 +536,113 @@ $('vcol').onclick = () => {
 // ───── Аккаунт ─────
 $('avatarBtn').onclick = () => { if (user) openAccount(); };
 
-async function saveProfile(name, grad) {
-  const r = await sb.auth.updateUser({ data: { name, grad } });
-  if (r.error) return toast('Не удалось сохранить профиль', { err: true });
-  if (r.data && r.data.user) user = r.data.user;
+// Фото профиля: обрезаем до квадрата и уменьшаем, чтобы весило около 20 КБ
+function squareJpeg(file, size) {
+  return new Promise((res, rej) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const s = Math.min(img.naturalWidth, img.naturalHeight);
+      const c = document.createElement('canvas');
+      c.width = c.height = size;
+      c.getContext('2d').drawImage(img, (img.naturalWidth - s) / 2, (img.naturalHeight - s) / 2, s, s, 0, 0, size, size);
+      URL.revokeObjectURL(url);
+      c.toBlob((b) => (b ? res(b) : rej(new Error('jpeg'))), 'image/jpeg', 0.86);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('img')); };
+    img.src = url;
+  });
+}
+
+async function uploadAvatar(file) {
+  if (!file) return;
+  toast('Загружаю фото…', { sticky: true });
+  try {
+    const blob = await squareJpeg(file, 320);
+    const path = user.id + '/avatar-' + uid() + '.jpg';
+    const up = await sb.storage.from('pins').upload(path, blob, { contentType: 'image/jpeg', cacheControl: '31536000' });
+    if (up.error) throw up.error;
+    const old = profile().avatar;
+    saveMeta({ avatar: path });
+    if (old) sb.storage.from('pins').remove([old]);
+    refreshAvatar();
+    hideToast(); toast('Фото обновлено');
+    openAccount();
+  } catch (e) { toast('Не удалось загрузить фото', { err: true }); }
+}
+
+function removeAvatar() {
+  const old = profile().avatar;
+  if (!old) return;
+  saveMeta({ avatar: '' });
+  sb.storage.from('pins').remove([old]);
+  refreshAvatar();
+  openAccount();
+}
+
+function seg(id, opts, cur) {
+  return '<div class="seg s' + opts.length + '" id="' + id + '">' + opts.map((o) =>
+    '<button data-v="' + o[0] + '" class="' + (String(o[0]) === String(cur) ? 'on' : '') + '">' + o[1] + '</button>').join('') + '</div>';
+}
+function wireSeg(id, cb) {
+  const box = $(id);
+  box.querySelectorAll('button').forEach((b) => (b.onclick = () => {
+    box.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
+    cb(b.dataset.v);
+  }));
 }
 
 function openAccount() {
-  const p = profile();
+  const p = profile(), pr = prefs();
   const photos = items.filter((i) => i.type === 'image').length;
   const total = items.reduce((s, i) => s + (i.size || 0), 0);
   openSheet(
-    '<h3>Аккаунт</h3>' +
+    '<h3>Профиль</h3>' +
     '<div class="avatar big" id="bigAv"></div>' +
-    '<div class="dots">' + GRADS.map((g, i) => '<button class="dot' + (i === p.grad ? ' on' : '') + '" data-i="' + i + '" style="' + gradCss(i) + '" aria-label="Цвет"></button>').join('') + '</div>' +
+    '<div class="chips"><button class="chip" id="avPick">' + ic('image', 'sm') + (p.avatar ? 'Другое фото' : 'Добавить фото') + '</button>' +
+    (p.avatar ? '<button class="chip" id="avDel">Убрать фото</button>' : '') + '</div>' +
+    '<input type="file" id="avFile" accept="image/*" hidden>' +
+    '<div class="dots" id="gDots">' + GRADS.map((g, i) => '<button class="dot' + (i === p.grad ? ' on' : '') + '" data-i="' + i + '" style="' + gradCss(i) + '" aria-label="Цвет аватара"></button>').join('') + '</div>' +
     '<label class="fl">Имя</label><input class="field" id="pName" maxlength="24" value="' + esc(p.name) + '" placeholder="Как тебя зовут?">' +
-    '<div class="mail">' + esc(user.email || '') + '</div>' +
+    '<label class="fl">О себе</label><textarea class="field" id="pBio" maxlength="80" placeholder="Пара слов о себе">' + esc(p.bio) + '</textarea>' +
+    '<label class="fl">Тема</label>' + seg('thSeg', [['auto', 'Авто'], ['light', 'Светлая'], ['dark', 'Тёмная']], pr.theme) +
+    '<label class="fl">Цвет акцента</label><div class="dots" id="acDots">' + ACCENTS.map((a, i) => '<button class="dot' + (i === pr.accent ? ' on' : '') + '" data-i="' + i + '" style="background:' + a.l + '" aria-label="Акцент"></button>').join('') + '</div>' +
+    '<label class="fl">Размер картинок</label>' + seg('colSeg', [[2, 'Крупно'], [3, 'Мелко']], pr.cols) +
+    '<label class="fl">Вход</label>' +
+    '<div class="mail" style="margin:0 0 4px">' + esc(user.email || '') + '</div>' +
+    '<button class="btn sec" id="chgMail">Сменить почту</button>' +
+    '<button class="btn sec" id="chgPass">Сменить пароль</button>' +
     '<div class="stats"><div class="stat"><b>' + items.length + '</b><small>всего</small></div><div class="stat"><b>' + photos + '</b><small>фото</small></div><div class="stat"><b>' + (items.length - photos) + '</b><small>видео</small></div></div>' +
     '<div class="mail">Занято в облаке: ' + mb(total) + '</div>' +
     '<button class="btn sec" id="out"><span class="in">' + ic('logout', 'sm') + 'Выйти</span></button>' +
     '<button class="btn dng" id="wipe"><span class="in">' + ic('trash', 'sm') + 'Удалить все файлы</span></button>'
   );
-  paintAvatar(p.name, p.grad);
+  paintAvatar(p.name, p.grad, p.avatar);
 
   let grad = p.grad;
-  $('pName').oninput = () => paintAvatar($('pName').value, grad);
-  $('pName').onchange = () => saveProfile($('pName').value.trim(), grad);
-  $('sheet').querySelectorAll('.dot').forEach((d) => (d.onclick = () => {
+  $('avPick').onclick = () => $('avFile').click();
+  $('avFile').onchange = () => uploadAvatar($('avFile').files[0]);
+  if ($('avDel')) $('avDel').onclick = removeAvatar;
+
+  $('pName').oninput = () => paintAvatar($('pName').value, grad, profile().avatar);
+  $('pName').onchange = () => { saveMeta({ name: $('pName').value.trim() }); refreshAvatar(); };
+  $('pBio').onchange = () => saveMeta({ bio: $('pBio').value.trim() });
+
+  $('gDots').querySelectorAll('.dot').forEach((d) => (d.onclick = () => {
     grad = +d.dataset.i;
-    $('sheet').querySelectorAll('.dot').forEach((x) => x.classList.toggle('on', x === d));
-    paintAvatar($('pName').value, grad);
-    saveProfile($('pName').value.trim(), grad);
+    $('gDots').querySelectorAll('.dot').forEach((x) => x.classList.toggle('on', x === d));
+    saveMeta({ grad });
+    paintAvatar($('pName').value, grad, profile().avatar); refreshAvatar();
   }));
+  $('acDots').querySelectorAll('.dot').forEach((d) => (d.onclick = () => {
+    $('acDots').querySelectorAll('.dot').forEach((x) => x.classList.toggle('on', x === d));
+    setPrefs({ accent: +d.dataset.i });
+  }));
+  wireSeg('thSeg', (v) => setPrefs({ theme: v }));
+  wireSeg('colSeg', (v) => setPrefs({ cols: +v }));
+
+  $('chgMail').onclick = openChangeEmail;
+  $('chgPass').onclick = openNewPassword;
   $('out').onclick = async () => { closeSheet(); await sb.auth.signOut(); };
   $('wipe').onclick = async () => {
     if (!confirm('Удалить все файлы из избранного на всех устройствах? Это нельзя отменить.')) return;
@@ -494,6 +651,21 @@ function openAccount() {
     for (let i = 0; i < paths.length; i += 100) await sb.storage.from('pins').remove(paths.slice(i, i + 100));
     await sb.from('items').delete().eq('user_id', user.id);
     await loadAll(); closeSheet(); toast('Всё удалено'); render();
+  };
+}
+
+function openChangeEmail() {
+  openSheet('<h3>Новая почта</h3><input id="nem" class="field" type="email" inputmode="email" autocomplete="email" placeholder="Новый адрес" autocapitalize="off" autocorrect="off" spellcheck="false">' +
+    '<div class="mail" style="margin-top:10px">Мы отправим письмо со ссылкой. Пока не подтвердишь, входить нужно по старой почте.</div>' +
+    '<button class="btn" id="nemok">Отправить письмо</button>');
+  $('nemok').onclick = async () => {
+    const v = $('nem').value.trim();
+    if (!/^\S+@\S+\.\S+$/.test(v)) return toast('Проверь адрес почты', { err: true });
+    $('nemok').disabled = true;
+    const r = await sb.auth.updateUser({ email: v }, { emailRedirectTo: redirectUrl() });
+    $('nemok').disabled = false;
+    if (r.error) return toast(errRu(r.error.message), { err: true });
+    closeSheet(); toast('Письмо отправлено');
   };
 }
 
@@ -583,6 +755,7 @@ function showAuth(mode) {
 
 async function onLogin() {
   $('auth').classList.remove('open');
+  pullPrefs();
   refreshAvatar();
   loading = true; render();
   await loadAll();
@@ -675,6 +848,7 @@ if (!configured) {
   });
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist();
 }
+if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) navigator.serviceWorker.register('sw.js').catch(() => {});
 </script>
 </body>
 </html>
